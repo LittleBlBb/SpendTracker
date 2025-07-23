@@ -13,6 +13,8 @@ def execute_query(query, values=None, fetch=False):
             cur.execute(query, values)
             if fetch:
                 result = cur.fetchall()
+                conn.commit()
+                print("Query executed successfully")
                 return result
             conn.commit()
             print("Query executed successfully")
@@ -197,6 +199,74 @@ def update_transaction_by_id(message, data):
     execute_query(update_query, update_values)
 
     return True
+
+def get_transactions():
+    query = (
+        "SELECT t.transaction_id, c.category_name, t.product, t.amount, TO_CHAR(t.created_at, 'YYYY-MM-DD') AS created_at "
+        "FROM TRANSACTIONS t "
+        "JOIN categories c "
+        "ON c.category_id = t.category_id " 
+        "ORDER BY t.created_at"
+    )
+
+    result = execute_query(query, fetch=True)
+
+    return [
+        {
+            "transaction_id": row[0],
+            "category_name": row[1],
+            "product": row[2],
+            "amount": float(row[3]),
+            "transaction_date": str(row[4])
+        }
+        for row in result
+    ]
+
+
+def add_transaction(data):
+    query = (
+        "INSERT INTO transactions (user_id, category_id, product, amount, transaction_date) "
+        "VALUES (%s, %s, %s, %s, %s) RETURNING transaction_id"
+    )
+
+    values = (
+        data["user_id"],
+        data["category_id"],
+        data["product"],
+        data["amount"],
+        data["transaction_date"]
+    )
+
+    result = execute_query(query, values, fetch=True)
+
+    return {"transaction_id": result[0][0]} if result else {"status": "failed"}
+
+def delete_transaction(transaction_id):
+    print(f"Processing delete transaction {transaction_id}")
+    query = "DELETE FROM transactions WHERE transaction_id = %s RETURNING transaction_id"
+    result = execute_query(query, (transaction_id,), fetch=True)
+    if result:
+        return {"status": "deleted", "transaction_id": result[0][0]}
+    else:
+        return {"error": "transaction not found"}
+
+def update_transaction(transaction_id, data):
+    fields = []
+    values = []
+
+    for key in ("product", "amount", "transaction_date", "category_id"):
+        if key in data:
+            fields.append(f"{key} = %s")
+            values.append(data[key])
+
+    if not fields:
+        return {"error" : "No fields to update"}
+
+    values.append(transaction_id)
+    query = f"UPDATE transactions SET {', '.join(fields)} WHERE transaction_id = %s"
+    execute_query(query, values)
+
+    return {"status": "updated", "transaction_id": transaction_id}
 
 #Начало переписки (/start)
 def start(message):

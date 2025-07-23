@@ -208,6 +208,10 @@ async def amount_input(message: Message, state: FSMContext):
     )
     DB_Working.new_transaction(message, values)
 
+    await message.reply("Готово!")
+
+    await show_all_transactions(message)
+
     await state.clear()
 
 #============вывести все транзакции=============
